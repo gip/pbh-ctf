@@ -1,7 +1,7 @@
 //! PBH CTF starter bot
 pub mod config;
 
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, fs::OpenOptions, io::Write, time::{SystemTime, UNIX_EPOCH}};
 
 use alloy_network::Network;
 use alloy_network::eip2718::Encodable2718;
@@ -16,6 +16,25 @@ use pbh_ctf::{
     world_id::WorldID,
 };
 use reqwest::Url;
+
+// Function to log events to pbh.log
+fn log_event(event: &str) -> Result<()> {
+    // Get current time as milliseconds since epoch
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_millis();
+    
+    let log_entry = format!("{} {}\n", timestamp, event);
+    
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("pbh.log")?;
+    
+    file.write_all(log_entry.as_bytes())?;
+    Ok(())
+}
 
 // Replace all instances of `PBH_CTF_CONTRACT_TEST` with `PBH_CTF_CONTRACT` on the start of the game.
 #[tokio::main]
@@ -53,6 +72,9 @@ async fn main() -> Result<()> {
     let mut wallet_nonce = provider.get_transaction_count(signer.address()).await?;
 
     while let Some(header) = block_stream.next().await {
+        // Log blockStart event
+        log_event("blockStart")?;
+        
         if header.number > game_end.to() {
             println!("The game has ended, thanks for playing!");
             break;
@@ -94,6 +116,10 @@ async fn main() -> Result<()> {
         };
         let pending_tx = provider.send_raw_transaction(&tx.encoded_2718()).await?;
         tracing::info!("Sent transaction: {:?}", pending_tx.tx_hash());
+        
+        // Log TxSubmitted event
+        log_event(&format!("TxSubmitted {} {:?}", wallet_nonce, pending_tx.tx_hash()))?;
+        
         wallet_nonce += 1;
     }
 
