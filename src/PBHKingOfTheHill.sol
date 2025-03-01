@@ -17,7 +17,7 @@ contract PBHKotH is IPBHKotH {
     uint256 public immutable gameStart;
 
     /// @notice 36 hours in blocks.
-    uint256 public constant GAME_DURATION = 64800;
+    uint256 public constant GAME_DURATION = 164800;
 
     /// @notice Address of the current leader.
     address public leader;
