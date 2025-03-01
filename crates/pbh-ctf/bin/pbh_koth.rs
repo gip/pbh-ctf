@@ -1,8 +1,7 @@
 //! PBH CTF starter bot
 pub mod config;
 
-use std::{path::PathBuf, sync::Arc, fs::OpenOptions, io::Write};
-use chrono::Utc;
+use std::{path::PathBuf, sync::Arc, fs::OpenOptions, io::Write, time::{SystemTime, UNIX_EPOCH}};
 
 use alloy_network::Network;
 use alloy_network::eip2718::Encodable2718;
@@ -20,7 +19,12 @@ use reqwest::Url;
 
 // Function to log events to pbh.log
 fn log_event(event: &str) -> Result<()> {
-    let timestamp = Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
+    // Get current time as milliseconds since epoch
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_millis();
+    
     let log_entry = format!("{} {}\n", timestamp, event);
     
     let mut file = OpenOptions::new()
