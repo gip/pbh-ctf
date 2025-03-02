@@ -7,6 +7,7 @@ use alloy_network::Network;
 use alloy_network::eip2718::Encodable2718;
 use alloy_provider::{Provider, ProviderBuilder, WsConnect};
 use alloy_signer_local::PrivateKeySigner;
+use clap::Parser;
 use config::CTFConfig;
 use eyre::eyre::{Result, eyre};
 use futures::StreamExt;
@@ -17,9 +18,21 @@ use pbh_ctf::{
 };
 use reqwest::Url;
 
+/// Command line arguments for the PBH CTF bot
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Number of transactions to send per block
+    #[arg(short, long, default_value_t = 1)]
+    tx_count: u32,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
+
+    // Parse command line arguments
+    let args = Args::parse();
 
     let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("bin/pbh_koth.toml");
     let config = CTFConfig::load(Some(config_path.as_path()))?;
@@ -62,38 +75,41 @@ async fn main() -> Result<()> {
             continue;
         }
 
-        // If the user has not hit the pbh limit send a PBH tx, otherwise send a standard tx
-        let tx = if pbh_nonce < pbh_nonce_limit {
-            tracing::info!("Preparing PBH CTF transaction");
-            let calls = pbh_ctf::king_of_the_hill_multicall(player, PBH_CTF_CONTRACT);
-            let tx = CTFTransactionBuilder::new()
-                .to(PBH_ENTRY_POINT)
-                .nonce(wallet_nonce)
-                .from(signer.address())
-                .with_pbh_multicall(&world_id, pbh_nonce, signer.address(), calls)
-                .await?
-                .build(signer.clone())
-                .await?;
+        // Send the specified number of transactions
+        for _ in 0..args.tx_count {
+            // If the user has not hit the pbh limit send a PBH tx, otherwise send a standard tx
+            let tx = if pbh_nonce < pbh_nonce_limit {
+                tracing::info!("Preparing PBH CTF transaction");
+                let calls = pbh_ctf::king_of_the_hill_multicall(player, PBH_CTF_CONTRACT);
+                let tx = CTFTransactionBuilder::new()
+                    .to(PBH_ENTRY_POINT)
+                    .nonce(wallet_nonce)
+                    .from(signer.address())
+                    .with_pbh_multicall(&world_id, pbh_nonce, signer.address(), calls)
+                    .await?
+                    .build(signer.clone())
+                    .await?;
 
-            // Optimistically bump the pbh nonce
-            // @dev If the pbh transaction reverts, the PBH nonce will not be spent and can be used again
-            pbh_nonce += 1;
+                // Optimistically bump the pbh nonce
+                // @dev If the pbh transaction reverts, the PBH nonce will not be spent and can be used again
+                pbh_nonce += 1;
 
-            tx
-        } else {
-            tracing::info!("Preparing CTF transaction");
-            let calldata = pbh_ctf::king_of_the_hill_calldata(player);
-            CTFTransactionBuilder::new()
-                .to(PBH_CTF_CONTRACT)
-                .nonce(wallet_nonce)
-                .from(signer.address())
-                .input(calldata.into())
-                .build(signer.clone())
-                .await?
-        };
-        let pending_tx = provider.send_raw_transaction(&tx.encoded_2718()).await?;
-        tracing::info!("Sent transaction: {:?}", pending_tx.tx_hash());
-        wallet_nonce += 1;
+                tx
+            } else {
+                tracing::info!("Preparing CTF transaction");
+                let calldata = pbh_ctf::king_of_the_hill_calldata(player);
+                CTFTransactionBuilder::new()
+                    .to(PBH_CTF_CONTRACT)
+                    .nonce(wallet_nonce)
+                    .from(signer.address())
+                    .input(calldata.into())
+                    .build(signer.clone())
+                    .await?
+            };
+            let pending_tx = provider.send_raw_transaction(&tx.encoded_2718()).await?;
+            tracing::info!("Sent transaction: {:?}", pending_tx.tx_hash());
+            wallet_nonce += 1;
+        }
     }
 
     Ok(())

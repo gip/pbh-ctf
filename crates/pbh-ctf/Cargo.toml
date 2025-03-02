@@ -21,6 +21,7 @@ reqwest.workspace = true
 config.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+clap = { version = "4.4", features = ["derive"] }
 
 world-chain-builder-pbh.workspace = true
 world-chain-builder-test-utils.workspace = true

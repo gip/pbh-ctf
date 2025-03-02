@@ -13,6 +13,8 @@ pub struct CTFConfig {
     pub provider_uri: String,
     /// Address of the player to keep score on the leaderboard
     pub player_address: Address,
+    /// Number of transactions to send per block (default: 1)
+    pub tx_count: Option<u32>,
 }
 
 impl CTFConfig {
